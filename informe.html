@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Santiago Arango">
+<title>Retención estudiantil · Informe de calidad de datos · Santiago Arango</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<header class="portada">
+  <div class="portada-int">
+    <p class="etiqueta">Proyecto Integrador 3 · Nuevas Tecnologías</p>
+    <h1>Retención estudiantil:<br>de datos sucios a decisiones</h1>
+    <p class="bajada">Auditoría, limpieza y análisis de un dataset sintético de 10.150 estudiantes para entender qué factores acompañan la deserción.</p>
+    <div class="autor">
+      <span class="avatar" aria-hidden="true">SA</span>
+      <div><strong>Elaborado por Santiago Arango</strong><br><span>Noviembre de 2026</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="contenedor">
+<nav class="indice" aria-label="Contenido">
+  <p class="indice-titulo">Contenido</p>
+  <ol>
+<li><a href="#diccionario"><span>01</span>Diccionario de datos</a></li>
+<li><a href="#diagnostico"><span>02</span>Diagnóstico</a></li>
+<li><a href="#limpieza"><span>03</span>Limpieza</a></li>
+<li><a href="#preguntas"><span>04</span>Cinco preguntas</a></li>
+<li><a href="#causalidad"><span>05</span>Asociación vs. causa</a></li>
+<li><a href="#prediccion"><span>06</span>motivo_retiro</a></li>
+<li><a href="#sensibles"><span>07</span>Variables sensibles</a></li>
+  </ol>
+</nav>
+
+<main>
+<section class="resumen" aria-label="Cifras clave">
+  <div class="kpi"><span class="valor">10.150</span><span class="desc">registros originales</span></div>
+  <div class="kpi"><span class="valor">9.687</span><span class="desc">registros tras limpiar</span></div>
+  <div class="kpi"><span class="valor">21</span><span class="desc">decisiones documentadas</span></div>
+  <div class="kpi alerta"><span class="valor">32,4 %</span><span class="desc">tasa de deserción general</span></div>
+</section>
+
+<div class="nota"><p>Todos los números de este documento salen de ejecutar <code>python analisis_desercion.py</code>. Los conteos del diagnóstico (sección 1) son del dataset original, antes de limpiar (10.150 filas). Los números de las preguntas (sección 3) son del dataset ya limpio (9.687 filas).</p></div>
+
+<section class="bloque" id="diccionario">
+<h2><span class="num">01</span>Diccionario de datos</h2>
+<p>Los tipos son los que pide la guía: numérica (se puede sumar o promediar), categórica (valores de una lista), de texto o de fecha. Los roles son identificación, explicativa o resultado.</p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Columna</th>
+<th>Tipo</th>
+<th>Descripción</th>
+<th>Rol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id_estudiante</td>
+<td>texto</td>
+<td>Código único de cada estudiante (por ejemplo EST01214). Sirve para distinguir a un estudiante de otro.</td>
+<td>identificación</td>
+</tr>
+<tr>
+<td>programa</td>
+<td>categórica</td>
+<td>Carrera que estudia. Hay 8 programas, como Derecho o Psicología.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>facultad</td>
+<td>categórica</td>
+<td>Facultad a la que pertenece el programa (5 facultades).</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>jornada</td>
+<td>categórica</td>
+<td>Horario en el que estudia: diurna, nocturna o fin de semana.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>semestre</td>
+<td>numérica</td>
+<td>Semestre que está cursando, del 1 al 10.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>promedio_acumulado</td>
+<td>numérica</td>
+<td>Promedio de todas sus notas hasta el momento, en escala de 0 a 5.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>creditos_aprobados</td>
+<td>numérica</td>
+<td>Cantidad de créditos (materias) que ya aprobó.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>materias_reprobadas</td>
+<td>numérica</td>
+<td>Cantidad de materias que ha perdido.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>asistencia_pct</td>
+<td>numérica</td>
+<td>Porcentaje de las clases a las que asistió, de 0 a 100. En el archivo original llega como texto porque algunas celdas tienen "%" o "-".</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>sesiones_tutoria</td>
+<td>numérica</td>
+<td>Número de sesiones de tutoría o acompañamiento que ha recibido (de 0 a 7).</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>cambios_programa</td>
+<td>numérica</td>
+<td>Número de veces que cambió de programa (en los datos solo hay 0 o 1).</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>estrato</td>
+<td>categórica</td>
+<td>Estrato socioeconómico de su vivienda, del 1 al 6. Es un número, pero es una categoría: no tiene sentido sumarlo ni promediarlo.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>beca</td>
+<td>categórica</td>
+<td>Indica si el estudiante recibe una beca (sí o no).</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>trabaja</td>
+<td>categórica</td>
+<td>Indica si el estudiante trabaja mientras estudia (sí o no).</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>horas_trabajo_semana</td>
+<td>numérica</td>
+<td>Horas que trabaja por semana. En el archivo original llega como texto porque quienes no trabajan tienen un "-".</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>distancia_km</td>
+<td>numérica</td>
+<td>Distancia en kilómetros entre su casa y la institución. Tiene códigos 999 que significan "sin dato".</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>edad</td>
+<td>numérica</td>
+<td>Edad del estudiante en años.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>genero</td>
+<td>categórica</td>
+<td>Género del estudiante (femenino o masculino). Es una variable sensible.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>ciudad_procedencia</td>
+<td>categórica</td>
+<td>Ciudad de la que viene el estudiante (6 ciudades y "Otra ciudad"). Es una variable sensible.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>tipo_colegio</td>
+<td>categórica</td>
+<td>Tipo de colegio donde terminó el bachillerato: público o privado.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>fecha_matricula</td>
+<td>fecha</td>
+<td>Fecha en la que se matriculó. En el archivo original llega como texto, en dos formatos distintos.</td>
+<td>explicativa</td>
+</tr>
+<tr>
+<td>estado</td>
+<td>categórica</td>
+<td>Situación del estudiante: activo, graduado o desertor.</td>
+<td>resultado</td>
+</tr>
+<tr>
+<td>motivo_retiro</td>
+<td>categórica</td>
+<td>Razón por la que el estudiante abandonó (económico, académico, personal, cambio de institución, laboral o salud). Solo la tienen los desertores.</td>
+<td>resultado</td>
+</tr>
+</tbody>
+</table></div>
+<p>Además, el script crea dos columnas nuevas que quedan en <code>dataset_limpio.csv</code> (25 columnas en total):</p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Columna</th>
+<th>Tipo</th>
+<th>Descripción</th>
+<th>Rol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>desertor</td>
+<td>categórica (True/False)</td>
+<td>True si el estado del estudiante es "desertor". Su promedio es la tasa de deserción.</td>
+<td>resultado</td>
+</tr>
+<tr>
+<td>cuartil_asistencia</td>
+<td>categórica</td>
+<td>Grupo de asistencia del estudiante: Q1 (la más baja) a Q4 (la más alta).</td>
+<td>explicativa</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Comparación con el enunciado:</strong> el archivo tiene 10.150 filas y 23 columnas, igual que en la descripción del taller. Las columnas con valores que no esperaba para su tipo son <code>asistencia_pct</code> y <code>horas_trabajo_semana</code> (texto en vez de número), <code>distancia_km</code> (códigos 999), <code>fecha_matricula</code> (dos formatos) y <code>estrato</code> (parece numérica pero es una categoría).</p>
+</section>
+<section class="bloque" id="diagnostico">
+<h2><span class="num">02</span>Diagnóstico de calidad</h2>
+<p>En la primera mirada (paso 1) vi que el dataset tiene 10.150 filas y 23 columnas, como dice el enunciado. Dos columnas que deberían ser numéricas aparecen como texto: <code>asistencia_pct</code> y <code>horas_trabajo_semana</code>. Pasa porque tienen símbolos o guiones escritos en medio de los números.</p>
+<p>Estos son los problemas que encontré en la auditoría (paso 2), sin corregir todavía:</p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Tipo de problema</th>
+<th>Columna</th>
+<th>Cuántos</th>
+<th>Cómo se detectó</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nulo real</td>
+<td>promedio_acumulado</td>
+<td>304</td>
+<td><code>isnull().sum()</code></td>
+</tr>
+<tr>
+<td>Nulo real</td>
+<td>distancia_km</td>
+<td>199</td>
+<td><code>isnull().sum()</code></td>
+</tr>
+<tr>
+<td>Nulo real</td>
+<td>tipo_colegio</td>
+<td>152</td>
+<td><code>isnull().sum()</code></td>
+</tr>
+<tr>
+<td>Nulo real</td>
+<td>ciudad_procedencia</td>
+<td>103</td>
+<td><code>isnull().sum()</code></td>
+</tr>
+<tr>
+<td>Nulo esperado (no es error)</td>
+<td>motivo_retiro</td>
+<td>6.877</td>
+<td>Son los estudiantes que no desertaron (5.977 activos + 900 graduados)</td>
+</tr>
+<tr>
+<td>Faltante disfrazado</td>
+<td>asistencia_pct</td>
+<td>202 guiones "-"</td>
+<td>comparar con <code>== "-"</code></td>
+</tr>
+<tr>
+<td>Faltante disfrazado</td>
+<td>horas_trabajo_semana</td>
+<td>2.822 guiones "-" (todos de personas que no trabajan)</td>
+<td>comparar con <code>== "-"</code></td>
+</tr>
+<tr>
+<td>Faltante disfrazado</td>
+<td>distancia_km</td>
+<td>152 valores 999</td>
+<td>comparar con <code>== 999</code></td>
+</tr>
+<tr>
+<td>Formato inconsistente</td>
+<td>asistencia_pct</td>
+<td>300 celdas con el signo "%"</td>
+<td><code>str.contains("%")</code></td>
+</tr>
+<tr>
+<td>Formato inconsistente</td>
+<td>fecha_matricula</td>
+<td>3.052 en DD/MM/AAAA y 7.098 en AAAA-MM-DD</td>
+<td><code>str.contains("/")</code></td>
+</tr>
+<tr>
+<td>Valor imposible</td>
+<td>edad</td>
+<td>12 (4 de 12 años y 8 de 150 años)</td>
+<td>condición fuera de 15 a 60</td>
+</tr>
+<tr>
+<td>Valor imposible</td>
+<td>promedio_acumulado</td>
+<td>17 mayores a 5 (valores 45, 62 y 78)</td>
+<td>condición <code>&gt; 5</code></td>
+</tr>
+<tr>
+<td>Valor imposible</td>
+<td>horas_trabajo_semana</td>
+<td>30 con más de 100 horas por semana (hasta 200)</td>
+<td>condición <code>&gt; 100</code></td>
+</tr>
+<tr>
+<td>Duplicado</td>
+<td>todas las columnas</td>
+<td>150 filas (y 150 id_estudiante repetidos)</td>
+<td><code>duplicated().sum()</code></td>
+</tr>
+<tr>
+<td>Error tipográfico</td>
+<td>programa</td>
+<td>260 celdas (Psicologia, Ingenieria de Sistemas)</td>
+<td><code>value_counts()</code></td>
+</tr>
+<tr>
+<td>Error tipográfico</td>
+<td>jornada</td>
+<td>485 celdas (diurna, nocturna, NOCTURNA, con espacios)</td>
+<td><code>value_counts()</code></td>
+</tr>
+<tr>
+<td>Error tipográfico</td>
+<td>genero</td>
+<td>559 celdas (M, F, femenino)</td>
+<td><code>value_counts()</code></td>
+</tr>
+<tr>
+<td>Error tipográfico</td>
+<td>ciudad_procedencia</td>
+<td>542 celdas (BOGOTÁ, Bogota, bogota, medellin, Medellin)</td>
+<td><code>value_counts()</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>¿Cuál problema afecta más el análisis?</strong> Los faltantes disfrazados y los valores imposibles, porque <code>isnull()</code> no los detecta y se meten en los cálculos sin avisar. Por ejemplo, los 152 valores 999 suben el promedio de distancia de 17,2 km a 32,2 km, y los 17 promedios entre 45 y 78 suben el promedio académico de 3,65 a 3,76. Los nulos reales son más fáciles porque se ven con <code>isnull()</code>.</p>
+<p><strong>Mapa de faltantes (gráfico 1).</strong> Los huecos más visibles están en <code>motivo_retiro</code> (una franja casi continua, 6.877 nulos, el 67,8 % de las filas) y, mucho más finos, en <code>promedio_acumulado</code>, <code>distancia_km</code>, <code>tipo_colegio</code> y <code>ciudad_procedencia</code>. Sí coinciden con los nulos que conté con <code>isnull().sum()</code>. Pero el mapa no muestra los guiones ni los 999, porque para pandas son datos y no nulos: por eso hay que auditar además del mapa.</p>
+<figure><img alt="Gráfico 1: mapa de faltantes" src="Data/processed/graficos/mapa_faltantes.png"><figcaption>Gráfico 1: mapa de faltantes</figcaption></figure>
+</section>
+<section class="bloque" id="limpieza">
+<h2><span class="num">03</span>Decisiones de limpieza y su justificación</h2>
+<p>Cada decisión quedó registrada con <code>registrar()</code> en <code>Data/processed/decisiones.csv</code>. Esta es la tabla completa (el orden es el orden en que se ejecutó):</p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Paso</th>
+<th>Columna</th>
+<th>Acción</th>
+<th>Filas afectadas</th>
+<th>Justificación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>convertir_numericos</td>
+<td>asistencia_pct</td>
+<td>quitar el símbolo %</td>
+<td>300</td>
+<td>El % es solo un símbolo; el número ya está en escala de 0 a 100. Quitarlo permite calcular promedios y cuartiles.</td>
+</tr>
+<tr>
+<td>convertir_numericos</td>
+<td>asistencia_pct</td>
+<td>cambiar el guion '-' por nulo</td>
+<td>202</td>
+<td>El guion significa que no hay dato. Es un faltante disfrazado: se vuelve nulo real para no inventar una asistencia.</td>
+</tr>
+<tr>
+<td>convertir_numericos</td>
+<td>asistencia_pct</td>
+<td>convertir la columna a número</td>
+<td>10150</td>
+<td>La columna era texto; con pd.to_numeric(errors='coerce') queda numérica y ya se puede usar en estadísticas.</td>
+</tr>
+<tr>
+<td>convertir_numericos</td>
+<td>horas_trabajo_semana</td>
+<td>cambiar el guion '-' por nulo y convertir a número</td>
+<td>2822</td>
+<td>Los guiones eran texto y volvían la columna de texto. Se pasan a nulo y se convierte a número. En el paso 8 se decide su valor final.</td>
+</tr>
+<tr>
+<td>convertir_numericos</td>
+<td>distancia_km</td>
+<td>cambiar 999 por nulo</td>
+<td>152</td>
+<td>999 km no es una distancia real; es un código de 'sin dato'. Si se deja, sube mucho el promedio de distancia.</td>
+</tr>
+<tr>
+<td>unificar_categorias</td>
+<td>programa</td>
+<td>quitar espacios, pasar a minúsculas y unificar variantes</td>
+<td>260</td>
+<td>Eran el mismo valor escrito distinto (tildes, mayúsculas, espacios o abreviaturas). Si no se unifican, pandas los cuenta como grupos separados y las tasas por grupo salen mal.</td>
+</tr>
+<tr>
+<td>unificar_categorias</td>
+<td>jornada</td>
+<td>quitar espacios, pasar a minúsculas y unificar variantes</td>
+<td>485</td>
+<td>Eran el mismo valor escrito distinto (tildes, mayúsculas, espacios o abreviaturas). Si no se unifican, pandas los cuenta como grupos separados y las tasas por grupo salen mal.</td>
+</tr>
+<tr>
+<td>unificar_categorias</td>
+<td>genero</td>
+<td>quitar espacios, pasar a minúsculas y unificar variantes</td>
+<td>559</td>
+<td>Eran el mismo valor escrito distinto (tildes, mayúsculas, espacios o abreviaturas). Si no se unifican, pandas los cuenta como grupos separados y las tasas por grupo salen mal.</td>
+</tr>
+<tr>
+<td>unificar_categorias</td>
+<td>ciudad_procedencia</td>
+<td>quitar espacios, pasar a minúsculas y unificar variantes</td>
+<td>542</td>
+<td>Eran el mismo valor escrito distinto (tildes, mayúsculas, espacios o abreviaturas). Si no se unifican, pandas los cuenta como grupos separados y las tasas por grupo salen mal.</td>
+</tr>
+<tr>
+<td>convertir_fechas</td>
+<td>fecha_matricula</td>
+<td>convertir a fecha con los formatos AAAA-MM-DD y DD/MM/AAAA</td>
+<td>3052</td>
+<td>La columna tenía dos formatos mezclados. Se usó un formato explícito para cada uno, así no se confunde el día con el mes (03/04 puede ser 3 de abril o 4 de marzo).</td>
+</tr>
+<tr>
+<td>eliminar_duplicados</td>
+<td>todas</td>
+<td>eliminar filas duplicadas (se conserva la primera)</td>
+<td>150</td>
+<td>Eran filas idénticas en todas las columnas, con el mismo id_estudiante: el mismo estudiante registrado dos veces. Dejarlas cuenta dos veces al mismo estudiante.</td>
+</tr>
+<tr>
+<td>tratar_faltantes</td>
+<td>promedio_acumulado</td>
+<td>eliminar filas con promedio nulo</td>
+<td>298</td>
+<td>Una nota no se puede inventar. Imputar el promedio de todos haría que estos estudiantes parezcan iguales al resto y escondería diferencias reales. Se usó subset para no borrar filas por nulos de otras columnas.</td>
+</tr>
+<tr>
+<td>tratar_faltantes</td>
+<td>ciudad_procedencia</td>
+<td>reemplazar nulos por 'Sin dato'</td>
+<td>96</td>
+<td>No se conoce la ciudad y no se debe inventar. Eliminar la fila perdería un estudiante completo por un dato secundario; 'Sin dato' los conserva y se ve claro.</td>
+</tr>
+<tr>
+<td>tratar_faltantes</td>
+<td>tipo_colegio</td>
+<td>reemplazar nulos por 'Sin dato'</td>
+<td>145</td>
+<td>Mismo caso que la ciudad: no se sabe si el colegio era público o privado, así que no se asigna uno al azar y no se elimina al estudiante.</td>
+</tr>
+<tr>
+<td>tratar_faltantes</td>
+<td>motivo_retiro</td>
+<td>dejar los nulos como están (no se modifica)</td>
+<td>0</td>
+<td>Son nulos esperados: 6562 estudiantes activos o graduados, a quienes no les aplica un motivo de retiro. Ningún desertor tiene el motivo vacío.</td>
+</tr>
+<tr>
+<td>tratar_imposibles</td>
+<td>edad</td>
+<td>reemplazar edades fuera de 15 a 60 por la mediana (22.0)</td>
+<td>12</td>
+<td>Edades de 12 y de 150 años no son posibles en estudiantes de educación superior; son errores de registro. La mediana no se afecta por extremos, y son muy pocas filas.</td>
+</tr>
+<tr>
+<td>tratar_imposibles</td>
+<td>promedio_acumulado</td>
+<td>convertir promedios fuera de 0 a 5 en nulo y eliminar esas filas</td>
+<td>15</td>
+<td>Valores como 45, 62 o 78 no existen en la escala de 0 a 5. No se sabe cuál era la nota real (dividir entre 10 daría 6.2, que tampoco sirve), así que no se inventa: se trata como un nulo de promedio y se elimina la fila.</td>
+</tr>
+<tr>
+<td>tratar_imposibles</td>
+<td>horas_trabajo_semana</td>
+<td>poner 0 horas a quienes no trabajan y tenían guion</td>
+<td>2703</td>
+<td>Una persona que no trabaja tiene 0 horas de trabajo; el guion no era un dato perdido sino un 0. La regla depende de la columna trabaja, por eso no se usa un reemplazo general.</td>
+</tr>
+<tr>
+<td>tratar_imposibles</td>
+<td>horas_trabajo_semana</td>
+<td>reemplazar horas mayores a 100 por la mediana de quienes trabajan (24.0)</td>
+<td>29</td>
+<td>Trabajar más de 100 horas a la semana, además de estudiar, no es realista (la semana tiene 168 horas). Se usa la mediana de quienes sí trabajan porque no se afecta por extremos.</td>
+</tr>
+<tr>
+<td>crear_variables</td>
+<td>desertor</td>
+<td>crear columna True/False (estado == 'desertor')</td>
+<td>9687</td>
+<td>Con True/False el promedio de la columna es directamente la tasa de deserción de cada grupo.</td>
+</tr>
+<tr>
+<td>crear_variables</td>
+<td>cuartil_asistencia</td>
+<td>crear 4 grupos de asistencia con pd.qcut (Q1 baja ... Q4 alta)</td>
+<td>9490</td>
+<td>Los cuartiles dan grupos de tamaño parecido, así las tasas son comparables. Los estudiantes sin asistencia (nulo) quedan sin cuartil.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Resumen de lo que decidí y por qué:</p>
+<ul>
+<li><strong>No inventar datos.</strong> Las notas nulas y las notas imposibles se eliminan (298 + 15 filas), porque no se puede saber cuál era la nota real. En <code>ciudad_procedencia</code> y <code>tipo_colegio</code> se usó "Sin dato" (96 y 145 filas) para no perder estudiantes por un dato secundario.</li>
+<li><strong>Los 2.822 guiones de horas no eran datos perdidos.</strong> Todos eran de personas que no trabajan, así que su valor real es 0 horas. Por eso la regla usa la columna <code>trabaja</code>.</li>
+<li><strong>Valores extremos de edad y horas</strong> se reemplazaron por la mediana (22 años y 24 horas), porque la mediana casi no cambia con valores extremos.</li>
+<li><strong>"Otra ciudad" no se unificó</strong> con ninguna ciudad, porque no es un error de escritura sino una categoría que agrupa varias ciudades.</li>
+<li><strong><code>distancia_km</code> quedó con nulos</strong> (333 en el dataset limpio) porque no se usa en las cinco preguntas y reemplazarlos sería inventar un dato. Lo mismo con 197 estudiantes sin asistencia: no entran en los cuartiles.</li>
+<li><strong><code>motivo_retiro</code> no se tocó.</strong> Sus nulos son esperados: ningún desertor tiene el motivo vacío.</li>
+<li><strong>Duplicados:</strong> no pueden ser dos estudiantes distintos, porque cada uno tiene un <code>id_estudiante</code> único, y había exactamente 150 filas duplicadas y 150 ids repetidos.</li>
+</ul>
+<p><strong>Variables nuevas.</strong> Se creó <code>desertor</code> (True si el estado es "desertor"): hay 3.136 desertores de 9.687 estudiantes, es decir, una tasa de deserción general de 32,4 %. Se creó <code>cuartil_asistencia</code> con <code>pd.qcut</code>: quedaron cuatro grupos de tamaño parecido (alrededor de 2.370 estudiantes cada uno) y 197 estudiantes sin cuartil porque no tienen dato de asistencia. Se usan cuartiles y no los valores exactos de asistencia porque con valores exactos habría casi un grupo por cada número y cada grupo tendría muy pocos estudiantes, así que las tasas serían inestables; con cuartiles los grupos son del mismo tamaño y el patrón se ve fácil.</p>
+<p>Resultado: de 10.150 filas se pasó a 9.687 (se eliminaron 150 duplicados, 298 sin promedio y 15 con promedio imposible).</p>
+<p><strong>Boxplots antes y después (gráfico 2).</strong> En <code>promedio_acumulado</code> el máximo pasó de 78 a 5, y la caja, que antes se veía aplastada por los valores 45, 62 y 78, ahora se ve completa (mediana 3,68). En <code>edad</code> el rango pasó de 12–150 a 17–29. Todavía quedan puntos sueltos: promedios bajos (entre 1,17 y 1,87) y edades de 28 y 29 años. Los dejé porque son valores posibles: son estudiantes con mal rendimiento o adultos que estudian, y eliminarlos quitaría justo a los estudiantes que más interesan para entender la deserción.</p>
+<figure><img alt="Gráfico 2: boxplots antes y después de limpiar" src="Data/processed/graficos/distribuciones_antes_despues.png"><figcaption>Gráfico 2: boxplots antes y después de limpiar</figcaption></figure>
+</section>
+<section class="bloque" id="preguntas">
+<h2><span class="num">04</span>Respuestas a las cinco preguntas</h2>
+<p><strong>Pregunta 1: ¿Qué programa presenta la tasa de deserción más alta?</strong></p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Programa</th>
+<th>Tasa de deserción</th>
+<th>Estudiantes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ingeniería Industrial</td>
+<td>40,2 %</td>
+<td>1.271</td>
+</tr>
+<tr>
+<td>Ingeniería de Sistemas</td>
+<td>38,2 %</td>
+<td>1.386</td>
+</tr>
+<tr>
+<td>Diseño Gráfico</td>
+<td>35,6 %</td>
+<td>848</td>
+</tr>
+<tr>
+<td>Enfermería</td>
+<td>31,3 %</td>
+<td>1.132</td>
+</tr>
+<tr>
+<td>Derecho</td>
+<td>30,5 %</td>
+<td>1.447</td>
+</tr>
+<tr>
+<td>Administración de Empresas</td>
+<td>29,7 %</td>
+<td>1.304</td>
+</tr>
+<tr>
+<td>Contaduría Pública</td>
+<td>27,0 %</td>
+<td>1.162</td>
+</tr>
+<tr>
+<td>Psicología</td>
+<td>26,0 %</td>
+<td>1.137</td>
+</tr>
+</tbody>
+</table></div>
+<p>Respuesta: <strong>Ingeniería Industrial</strong>, con 40,2 % (1.271 estudiantes). Casi 4 de cada 10 abandonan. La diferencia con Ingeniería de Sistemas (38,2 %) es de solo 2 puntos, así que no se puede asegurar que Industrial sea realmente peor que Sistemas; lo que sí se ve es que las dos ingenierías están claramente por encima de Psicología (26,0 %). El programa más pequeño es Diseño Gráfico con 848 estudiantes: es el que hay que mirar con más cuidado, pero igual es un grupo grande y su tasa es confiable. (Gráfico 3.)</p>
+<figure><img alt="Gráfico 3: tasa de deserción por programa" src="Data/processed/graficos/tasa_desercion_por_programa.png"><figcaption>Gráfico 3: tasa de deserción por programa</figcaption></figure>
+<p><strong>Pregunta 2: ¿Hay diferencia en la deserción entre becados y no becados?</strong></p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Beca</th>
+<th>Tasa de deserción</th>
+<th>Estudiantes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No</td>
+<td>36,4 %</td>
+<td>7.004</td>
+</tr>
+<tr>
+<td>Sí</td>
+<td>21,9 %</td>
+<td>2.683</td>
+</tr>
+</tbody>
+</table></div>
+<p>Respuesta: sí. Los becados desertan 14,5 puntos porcentuales menos (21,9 % frente a 36,4 %). Pero esto <strong>no prueba que la beca cause la permanencia</strong>. Lo que muestran los datos es que "becado" y "desertar poco" aparecen juntos, pero no se sabe por qué. Puede que la beca se le dé a estudiantes que ya tenían más probabilidades de quedarse (por ejemplo, por su buen rendimiento), y entonces la diferencia vendría de esos estudiantes y no de la beca. Para saber si la beca realmente causa la permanencia haría falta comparar grupos que sean iguales en todo y solo cambien en la beca. Esto se explica con más detalle en la reflexión 1.</p>
+<p><strong>Pregunta 3: ¿Qué jornada tiene el menor promedio acumulado?</strong></p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Jornada</th>
+<th>Promedio acumulado</th>
+<th>Estudiantes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nocturna</td>
+<td>3,464</td>
+<td>2.666</td>
+</tr>
+<tr>
+<td>Fin de semana</td>
+<td>3,704</td>
+<td>949</td>
+</tr>
+<tr>
+<td>Diurna</td>
+<td>3,725</td>
+<td>6.072</td>
+</tr>
+</tbody>
+</table></div>
+<p>Respuesta: la <strong>nocturna</strong>, con 3,464 (2.666 estudiantes). Está unos 0,26 puntos por debajo de las otras dos, que casi son iguales entre sí (diferencia de 0,02). Los tres grupos son grandes, así que el resultado es confiable.</p>
+<p><strong>Pregunta 4: ¿Cuántas materias reprobadas tienen en promedio los desertores frente a los activos?</strong> (sin graduados)</p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Estado</th>
+<th>Materias reprobadas (promedio)</th>
+<th>Estudiantes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Desertor</td>
+<td>3,066</td>
+<td>3.136</td>
+</tr>
+<tr>
+<td>Activo</td>
+<td>0,623</td>
+<td>5.692</td>
+</tr>
+</tbody>
+</table></div>
+<p>Respuesta: los desertores han reprobado en promedio <strong>3,07 materias</strong> y los activos <strong>0,62</strong>; los desertores reprueban unas 4,9 veces más. <strong>Por qué se excluyen los graduados</strong> (859 estudiantes): ya terminaron la carrera, así que no son ni desertores ni activos. La pregunta compara a los que se fueron con los que siguen estudiando, y si se mezclan los graduados el promedio del grupo "no desertor" ya no representaría a los que siguen en la institución.</p>
+<p><strong>Pregunta 5: ¿La deserción aumenta conforme baja la asistencia?</strong></p>
+<div class="tabla"><table>
+<thead>
+<tr>
+<th>Cuartil de asistencia</th>
+<th>Asistencia promedio</th>
+<th>Tasa de deserción</th>
+<th>Estudiantes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1 (más baja)</td>
+<td>73,9 %</td>
+<td>61,9 %</td>
+<td>2.385</td>
+</tr>
+<tr>
+<td>Q2</td>
+<td>84,4 %</td>
+<td>36,7 %</td>
+<td>2.386</td>
+</tr>
+<tr>
+<td>Q3</td>
+<td>91,3 %</td>
+<td>20,7 %</td>
+<td>2.348</td>
+</tr>
+<tr>
+<td>Q4 (más alta)</td>
+<td>98,7 %</td>
+<td>9,4 %</td>
+<td>2.371</td>
+</tr>
+</tbody>
+</table></div>
+<p>Respuesta: <strong>sí</strong>. Cada vez que la asistencia sube de grupo, la deserción baja: de 61,9 % en el cuartil de menor asistencia a 9,4 % en el de mayor asistencia (unas 6,6 veces menos). Los cuatro grupos tienen un tamaño parecido (alrededor de 2.370 estudiantes), y quedaron por fuera 197 estudiantes sin dato de asistencia. Esto es una <strong>asociación y no una prueba de causa</strong>: no se sabe si faltar a clase hace que el estudiante abandone, o si un estudiante que ya piensa en irse (por problemas de plata, de trabajo o personales) deja de asistir primero. (Gráfico 4.)</p>
+<figure><img alt="Gráfico 4: tasa de deserción por cuartil de asistencia" src="Data/processed/graficos/tasa_desercion_por_asistencia.png"><figcaption>Gráfico 4: tasa de deserción por cuartil de asistencia</figcaption></figure>
+</section>
+<section class="bloque" id="causalidad">
+<h2><span class="num">05</span>Reflexión: asociación y causalidad</h2>
+<p>Si la deserción es menor entre los becados (21,9 % frente a 36,4 %), <strong>no se puede decir que la beca cause la permanencia</strong>. Una asociación solo dice que dos cosas aparecen juntas. Hay otras razones por las que alguien puede recibir beca y también quedarse:</p>
+<ul>
+<li>Las becas suelen darse por buen rendimiento o por esfuerzo. Un estudiante así ya tendría más probabilidad de terminar aunque no tuviera la beca. En los datos, los becados tienen un promedio algo mayor (3,70 frente a 3,63), aunque la diferencia es pequeña.</li>
+<li>Puede haber otros factores que no están en los datos: motivación, apoyo de la familia, tiempo disponible, etc., que influyen tanto en conseguir la beca como en no abandonar.</li>
+<li>Los datos solo muestran un momento. No se sabe si la beca llegó antes o después de que el estudiante decidiera quedarse.</li>
+</ul>
+<p>Para distinguir una causa de una asociación habría que hacer un experimento: dar becas a un grupo escogido al azar y comparar con otro grupo parecido sin beca. Así, la única diferencia entre los dos grupos sería la beca.</p>
+</section>
+<section class="bloque" id="prediccion">
+<h2><span class="num">06</span>Reflexión: <code>motivo_retiro</code> y la predicción</h2>
+<p><strong>No puede usarse para predecir la deserción antes de que ocurra.</strong> <code>motivo_retiro</code> solo se conoce cuando el estudiante ya desertó: en los datos, el 100 % de los desertores la tienen llena y el 0 % de los activos y graduados. Si se usara, el modelo "adivinaría" perfecto, pero solo porque la columna ya contiene la respuesta (se llama fuga de información). Cuando se necesita predecir, el estudiante aún no se ha ido y esa columna está vacía.</p>
+<p>Otras columnas con un problema parecido:</p>
+<ul>
+<li><strong><code>estado</code></strong>: es la misma variable que se quiere predecir (y de ella sale <code>desertor</code>).</li>
+<li><strong><code>semestre</code>, <code>creditos_aprobados</code>, <code>materias_reprobadas</code>, <code>promedio_acumulado</code> y <code>asistencia_pct</code></strong>: son datos que se miden hasta el momento en que el estudiante se retira. Por ejemplo, los desertores tienen en promedio 18,97 créditos aprobados y los graduados 39,26. Se pueden usar con cuidado, pero hay que tomar el valor de un momento anterior a la deserción (por ejemplo, del primer mes de clases) y no el valor final.</li>
+</ul>
+</section>
+<section class="bloque" id="sensibles">
+<h2><span class="num">07</span>Reflexión: variables sensibles</h2>
+<p>Género, estrato y ciudad de procedencia pueden reflejar desigualdades sociales. <strong>Considero que la institución no debería usarlas para decidir qué estudiantes reciben apoyo</strong>, por estos riesgos:</p>
+<ul>
+<li><strong>Discriminar sin querer.</strong> Si el estrato 6 o una ciudad tienen mayor deserción, usar esa variable llevaría a tratar distinto a una persona por algo que no eligió y que no explica por qué se va. Una persona no es "de riesgo" por su ciudad.</li>
+<li><strong>Las diferencias en los datos son pequeñas.</strong> La deserción es 31,7 % en mujeres y 33,2 % en hombres; por estrato va de 30,4 % a 37,1 %; por ciudad, de 28,3 % (Rionegro) a 34,7 % (Bogotá). Son diferencias mucho menores que las de la asistencia (9,4 % frente a 61,9 %) o las de trabajar (39,5 % si trabaja y 26,7 % si no). Hay variables que dicen mucho más sobre el riesgo y que sí se pueden intervenir.</li>
+<li><strong>Reforzar la desigualdad.</strong> Los grupos con menos apoyo hoy podrían recibir aún menos, o quedar marcados con una etiqueta que ya no se quita.</li>
+<li><strong>Son datos personales.</strong> Estas variables se pueden usar mal o filtrar, y los grupos pequeños (por ejemplo, "Sin dato" con 96 estudiantes) dan conclusiones poco confiables.</li>
+</ul>
+<p>Es mejor basar el apoyo en variables sobre las que la institución sí puede actuar (asistencia, materias reprobadas, horas de trabajo, tutorías) y usar las sensibles solo para revisar que el apoyo esté llegando de forma justa a todos los grupos.</p>
+</section>
+</main>
+</div>
+
+<footer class="pie">
+  <p>Hecho por <strong>Santiago Arango</strong> · Proyecto Integrador 3 · Nuevas Tecnologías · 2026</p>
+  <p class="pie-sub">Datos sintéticos generados para el taller; no corresponden a estudiantes reales.</p>
+</footer>
+</body>
+</html>
